@@ -93,19 +93,21 @@ def prompt(var, data):
     print(f"{data.get('question', 'No question provided')}")
     print(os.linesep.join(data.get('info', []) or ['No additional info provided']))
 
+    user_input = input(f"{var} (default: {user_value}): ") or user_value
+
+    if user_input.startswith("random"):
+        match = re.match(r"random\((\d+)\)", user_input)
+        length = int(match.group(1)) if match else 32  # Default to 32 if not specified
+        user_input = generate_secure_random_string(length)
+    
     if 'regex' in data:
         while True:
-            user_input = input(f"{var} (default: {user_value}): ") or user_value
-            if user_input == "random":
-                user_input = generate_secure_random_string(32)
-            
             if re.fullmatch(data['regex'], user_input):
                 return user_input
             else:
                 print(f"Input does not match regex: {data['regex']}")
-    else:
-        user_input = input(f"{var} (default: {user_value}): ") or user_value
-        return user_input
+
+    return user_input
 
 def main():
     """
