@@ -3,6 +3,8 @@
 import re
 import os
 import argparse
+import secrets
+import string
 
 def parse_env_template(filepath) -> dict[str, dict]:
     """
@@ -63,7 +65,65 @@ def parse_env_template(filepath) -> dict[str, dict]:
 
     return final_markdown
 
+def generate_secure_random_string(length: int) -> str:
+    """
+    Generates a cryptographically secure random string of the specified length.
+
+    Args:
+        length (int): The length of the random string.
+
+    Returns:
+        str: A random string.
+    """
+    alphabet = string.ascii_letters + string.digits
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+def prompt(var, data):
+    """
+    Prompt the user for an environment variable value, with optional regex validation.
+
+    Args:
+        var (str): The environment variable name.
+        data (dict): Metadata for the variable, including 'default', 'question', 'info', and optional 'regex'.
+
+    Returns:
+        str: The value entered by the user (or default).
+    """
+    user_value = data.get('default', '')
+    print(f"{data.get('question', 'No question provided')}")
+    print(os.linesep.join(data.get('info', []) or ['No additional info provided']))
+
+    if 'regex' in data:
+        while True:
+            user_input = input(f"{var} (default: {user_value}): ") or user_value
+            if user_input == "random":
+                user_input = generate_secure_random_string(32)
+            
+            if re.fullmatch(data['regex'], user_input):
+                return user_input
+            else:
+                print(f"Input does not match regex: {data['regex']}")
+    else:
+        user_input = input(f"{var} (default: {user_value}): ") or user_value
+        return user_input
+
 def main():
+    """
+    Main entry point for the .env template parser and generator.
+    This function parses command-line arguments to specify the input .env template file and enable debug output.
+    It processes the template file, prompts the user for environment variable values (with validation and defaults),
+    and writes the resulting environment file to disk, handling file overwrite checks.
+    Steps performed:
+    1. Parse command-line arguments for input filename and debug mode.
+    2. Parse the .env template file using Markdown structure.
+    3. If debug mode is enabled, print detailed information about each variable.
+    4. For each environment variable, prompt the user for input, validate using regex if specified, and collect values.
+    5. Prompt the user for the output filename, check for overwrite if the file exists.
+    6. Write the collected environment variables to the specified output file.
+    Returns:
+        None
+    """
+
     parser = argparse.ArgumentParser(description="Parse a .env template file with Markdown structure.")
     parser.add_argument(
         "-f", "--filename",
@@ -101,18 +161,10 @@ def main():
 
     env_file_content = []
     for var, data in parsed_env.items():
-        user_value = data.get('default', '')
-        if 'regex' in data:
-            while True:
-                user_input = input(f"{var} (default: {user_value}): ") or user_value
-                if re.fullmatch(data['regex'], user_input):
-                    env_file_content.append(f"{var}={user_input}")
-                    break
-                else:
-                    print(f"Input does not match regex: {data['regex']}")
-        else:
-            user_input = input(f"{var} (default: {user_value}): ") or user_value
-            env_file_content.append(f"{var}={user_input}")
+        user_input = prompt(var, data)
+        env_file_content.append(f"{var}={user_input}")
+        
+        print("-" * 40)
 
     env_file_string = os.linesep.join(env_file_content)
 
