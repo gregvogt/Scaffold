@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
 import re
-import sys
+import os
+import argparse
 
-def parse_env_template_to_markdown(filepath) -> dict:
+def parse_env_template(filepath) -> dict[str, dict]:
     """
     Parses an environment template file and extracts Markdown structured information
     into a dictionary suitable for programatic use.
@@ -63,10 +64,74 @@ def parse_env_template_to_markdown(filepath) -> dict:
     return final_markdown
 
 def main():
-    # Allow filename to be passed as a command-line argument
-    filename = sys.argv[1] if len(sys.argv) > 1 else ".env.template"
-    md = parse_env_template_to_markdown(filename)
-    print(md)
+    parser = argparse.ArgumentParser(description="Parse a .env template file with Markdown structure.")
+    parser.add_argument(
+        "-f", "--filename",
+        type=str,
+        default=".env.template",
+        help="Path to the .env template file (default: .env.template)"
+    )
+    parser.add_argument(
+        "-d", "--debug",
+        action="store_true",
+        help="Enable debug output"
+    )
+    args = parser.parse_args()
+
+    print(f"Parsing file: {args.filename}")
+    parsed_env = parse_env_template(args.filename)
+
+    if not parsed_env:
+        print("No valid environment variables found or file could not be parsed.")
+        return
+    
+    if args.debug:
+        for var, data in parsed_env.items():
+            print(f"Variable: {var}")
+            print(f"  Section: {data.get('section', 'N/A')}")
+            print(f"  Question: {data.get('question', 'N/A')}")
+            print(f"  Info: {', '.join(data.get('info', [])) if data.get('info') else 'N/A'}")
+            print(f"  Default: {data.get('default', 'N/A')}")
+            if 'regex' in data:
+                print(f"  Regex: {data['regex']}")
+                if 'regex_error' in data:
+                    print(f"  Regex Error: {data['regex_error']}")
+            print()
+            print("-" * 40)
+
+    env_file_content = []
+    for var, data in parsed_env.items():
+        user_value = data.get('default', '')
+        if 'regex' in data:
+            while True:
+                user_input = input(f"{var} (default: {user_value}): ") or user_value
+                if re.fullmatch(data['regex'], user_input):
+                    env_file_content.append(f"{var}={user_input}")
+                    break
+                else:
+                    print(f"Input does not match regex: {data['regex']}")
+        else:
+            user_input = input(f"{var} (default: {user_value}): ") or user_value
+            env_file_content.append(f"{var}={user_input}")
+
+    env_file_string = os.linesep.join(env_file_content)
+
+    # Ask for output filename
+    output_filename = input("Enter output filename (default: .env): ").strip() or ".env"
+
+    # Check if file exists and ask to overwrite
+    if os.path.exists(output_filename):
+        overwrite = input(f"File '{output_filename}' exists. Overwrite? (y/N): ").strip().lower()
+        if overwrite != 'y':
+            print("Aborted. File not overwritten.")
+            return
+
+    try:
+        with open(output_filename, "w") as f:
+            f.write(env_file_string + os.linesep)
+        print(f"Environment file written to '{output_filename}'.")
+    except (OSError, IOError) as e:
+        print(f"Error writing to file '{output_filename}': {e}")
 
 if __name__ == "__main__":
     main()
