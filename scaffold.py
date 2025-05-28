@@ -1,5 +1,26 @@
 #!/usr/bin/env python3
 
+# A Python utility to generate `.env` files from a Markdown-annotated
+# template, with interactive prompts, validation, and secure random value generation.
+# 
+# Scaffold Environment Generator is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Scaffold Environment Generator is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Scaffold Environment Generator. If not, see <https://www.gnu.org/licenses/>.
+#
+# @package Scaffold Environment Generator
+# @author  Greg Vogt <contact@gregvogt.net>
+# @license https://www.gnu.org/licenses/gpl-3.0.html GNU General Public License v3.0
+# @link    https://gregvogt.net/projects
+
 import re
 import os
 import argparse
@@ -112,7 +133,6 @@ def prompt(var, data):
 def main():
     """
     Main entry point for the .env template parser and generator.
-    This function parses command-line arguments to specify the input .env template file and enable debug output.
     It processes the template file, prompts the user for environment variable values (with validation and defaults),
     and writes the resulting environment file to disk, handling file overwrite checks.
     Steps performed:
