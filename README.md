@@ -1,4 +1,10 @@
+<div align="center">
+
 # Scaffold Environment Generator
+
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+
+</div>
 
 A Python utility to generate `.env` files from a Markdown-annotated template, with interactive prompts, validation, and secure random value generation.
 
@@ -53,10 +59,7 @@ APP_PORT=3000
 ## Files
 
 - [`scaffold.py`](scaffold.py): Main script.
+- [`test_scaffold.py`](test_scaffold.py) Make sure everything works.
 - [`.env.template`](.env.template): Example template.
 - [`.env`](.env): Generated output (ignored by git).
 - [`.gitignore`](.gitignore): Ignores `.env` and virtual environments.
-
-## License
-
-GNU GENERAL PUBLIC LICENSE Version 3
