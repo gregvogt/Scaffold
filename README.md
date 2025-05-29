@@ -4,9 +4,9 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-</div>
-
 A Python utility to generate `.env` files from a Markdown-annotated template, with interactive prompts, validation, and secure random value generation.
+
+</div>
 
 ## Features
 
