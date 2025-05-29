@@ -23,6 +23,7 @@
 
 import re
 import os
+import sys
 import argparse
 import secrets
 import string
@@ -127,6 +128,7 @@ def prompt(var, data):
                 return user_input
             else:
                 print(f"Input does not match regex: {data['regex']}")
+                user_input = input(f"{var} (default: {user_value}): ") or user_value
 
     return user_input
 
@@ -145,6 +147,11 @@ def main():
     Returns:
         None
     """
+
+    # Exit if running as root
+    if os.geteuid() == 0:
+        print("Error: This script should not be run as root for safety reasons. Exiting.")
+        sys.exit(1)
 
     parser = argparse.ArgumentParser(description="Parse a .env template file with Markdown structure.")
     parser.add_argument(
