@@ -1,7 +1,10 @@
 import os
+import sys
 import tempfile
 import pytest
-from scaffold import parse_env_template, generate_secure_random_string
+import tempfile
+import builtins
+from scaffold import parse_env_template, generate_secure_random_string, main
 
 def test_root_detection(monkeypatch):
     # Simulate running as root by patching os.geteuid to return 0
@@ -121,10 +124,49 @@ def test_prompt_rejects_malicious_input(monkeypatch):
     }
     
     # Should keep prompting, so after one bad input, give a good one
-    inputs = iter(["bad; rm -rf /", "SAFE_VALUE"])
+    inputs = iter(["bad; rm -rf /", "another bad; cat ../../../etc/passwd", "SAFE_VALUE"])
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
     value = prompt("MALICIOUS_VAR", data)
     assert value == "SAFE_VALUE"
+
+def test_env_size_limit(monkeypatch):
+    # Prepare a large env string to exceed the limit
+    var_count = 1000
+    long_value = "A" * 200
+    env_lines = [f"VAR{i}={long_value}" for i in range(var_count)]
+
+    # Write a temporary .env.template file
+    with tempfile.NamedTemporaryFile("w+", delete=False) as tf:
+        for line in env_lines:
+            tf.write(f"{line}\n")
+        tf.flush()
+        template_path = tf.name
+
+    # Patch sys.argv to use the template file
+    monkeypatch.setattr(sys, "argv", ["scaffold.py", "-f", template_path])
+
+    # Patch input to always accept defaults, then 'n' to abort when asked to continue
+    inputs = iter([""] * var_count + ["test.env", "n"])
+    monkeypatch.setattr(builtins, "input", lambda *args, **kwargs: next(inputs))
+
+    # Patch os.sysconf to return a small limit to force the warning
+    monkeypatch.setattr(os, "sysconf", lambda name: 1024 if name == "SC_ARG_MAX" else 131072)
+
+    # Capture output
+    from io import StringIO
+    out = StringIO()
+    sys_stdout = sys.stdout
+    sys.stdout = out
+
+    try:
+        main()
+    finally:
+        sys.stdout = sys_stdout
+        os.unlink(template_path)
+
+    output = out.getvalue()
+    assert "Warning: The environment file size" in output
+    assert "Aborted. Please reduce the number or size of environment variables." in output
 
 def test_generate_secure_random_string_length():
     s = generate_secure_random_string(16)

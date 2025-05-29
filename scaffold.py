@@ -196,7 +196,24 @@ def main():
         print("-" * 40)
 
     env_file_string = os.linesep.join(env_file_content)
+    
+    # Check environment variable size limit
+    try:
+        max_env_size = os.sysconf('SC_ARG_MAX')
+    except (AttributeError, ValueError):
+        max_env_size = 131072  # Fallback to 128K if sysconf not available
 
+    env_length = len(env_file_string.encode('utf-8'))
+    print(f"Total environment file size: {env_length} bytes (system max: {max_env_size} bytes)")
+
+    if env_length > max_env_size:
+        print(f"Warning: The environment file size ({env_length} bytes) exceeds the system's max allocatable size ({max_env_size} bytes).")
+        print("Continuing may result in undefined behavior in some shells or applications.")
+        proceed = input("Would you like to continue anyway? (y/N): ").strip().lower()
+        if proceed != 'y':
+            print("Aborted. Please reduce the number or size of environment variables.")
+            return
+            
     # Ask for output filename
     output_filename = input("Enter output filename (default: .env): ").strip() or ".env"
 
