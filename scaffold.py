@@ -27,6 +27,31 @@ import sys
 import argparse
 import secrets
 import string
+import shutil
+import signal
+import random
+
+def random_goodbye():
+    messages = [
+        "Goodbye!",
+        "See you next time!",
+        "Exiting. Have a great day!",
+        "Bye for now!",
+        "Take care!",
+        "Scaffold signing off!",
+        "👋 Goodbye!",
+        "Thanks for using Scaffold!"
+    ]
+    return random.choice(messages)
+
+def handle_exit(signum, frame):
+    print(f"\n{signal.Signals(signum).name}: {random_goodbye()}")
+    sys.exit(0)
+
+# Register signal handlers at the top-level (before main)
+signal.signal(signal.SIGINT, handle_exit)   # Handle Ctrl+C
+signal.signal(signal.SIGTERM, handle_exit)  # Handle kill/terminate
+signal.signal(signal.SIGHUP, handle_exit)   # Handle terminal hangup
 
 def parse_env_template(filepath) -> dict[str, dict]:
     """
@@ -100,7 +125,7 @@ def generate_secure_random_string(length: int) -> str:
     alphabet = string.ascii_letters + string.digits
     return ''.join(secrets.choice(alphabet) for _ in range(length))
 
-def prompt(var, data):
+def prompt(var, data, current_question=None, total_questions=None) -> str:
     """
     Prompt the user for an environment variable value, with optional regex validation.
 
@@ -111,26 +136,60 @@ def prompt(var, data):
     Returns:
         str: The value entered by the user (or default).
     """
-    user_value = data.get('default', '')
-    print(f"{data.get('question', 'No question provided')}")
-    print(os.linesep.join(data.get('info', []) or ['No additional info provided']))
-
-    user_input = input(f"{var} (default: {user_value}): ") or user_value
-
-    if user_input.startswith("random"):
-        match = re.match(r"random\((\d+)\)", user_input)
-        length = int(match.group(1)) if match else 32  # Default to 32 if not specified
-        user_input = generate_secure_random_string(length)
     
-    if 'regex' in data:
-        while True:
-            if re.fullmatch(data['regex'], user_input):
-                return user_input
-            else:
-                print(f"Input does not match regex: {data['regex']}")
-                user_input = input(f"{var} (default: {user_value}): ") or user_value
+    # Attempt to clear the terminal in a cross-platform way
+    clear_cmd = 'cls' if os.name == 'nt' else 'clear'
+    if sys.stdout.isatty():
+        os.system(clear_cmd)
+    
+    user_value = data.get('default', '')
+    question = data.get('question', 'No question provided')
+    info_lines = data.get('info', []) or ['No additional info provided']
 
-    return user_input
+    try:
+        term_width = shutil.get_terminal_size((80, 20)).columns
+    except Exception:
+        term_width = 80
+
+    box_lines = []
+    content_lines = [question] + [''] + info_lines
+    max_line_length = max(len(line) for line in content_lines)
+    box_width = min(max_line_length + 4, term_width - 2)
+
+    indicator = ""
+    if current_question is not None and total_questions is not None:
+        indicator = f" ({current_question}/{total_questions})"
+        horizontal = "─" * max(1, box_width - 2 - len(indicator))
+        top = f"┌{horizontal}{indicator}┐"
+    else:
+        horizontal = "─" * max(1, box_width - 2)
+        top = f"┌{horizontal}┐"
+    bottom = f"└{'─' * max(1, box_width - 2)}┘"
+
+    box_lines.append(top)
+    for line in content_lines:
+        padded = line.center(box_width - 2)
+        box_lines.append(f"│{padded}│")
+    box_lines.append(bottom)
+
+    for line in box_lines:
+        print(line.center(term_width))
+
+    prompt_str = f"{var} (default: {user_value}): "
+    left_padding = max(0, (term_width - len(prompt_str)) // 2)
+    input_str = input(" " * left_padding + prompt_str).strip() or user_value
+
+    if input_str.startswith("random"):
+        match = re.match(r"random\((\d+)\)", input_str)
+        length = int(match.group(1)) if match else 32
+        input_str = generate_secure_random_string(length)
+
+    if 'regex' in data:
+        while not re.fullmatch(data['regex'], input_str):
+            print(f"Input does not match regex: {data['regex']}".center(term_width))
+            input_str = input(prompt_str.center(term_width)).strip() or user_value
+
+    return input_str
 
 def main():
     """
@@ -189,12 +248,11 @@ def main():
             print("-" * 40)
 
     env_file_content = []
-    for var, data in parsed_env.items():
-        user_input = prompt(var, data)
+    total_questions = len(parsed_env)
+    for idx, (var, data) in enumerate(parsed_env.items(), 1):
+        user_input = prompt(var, data, idx, total_questions)
         env_file_content.append(f"{var}={user_input}")
         
-        print("-" * 40)
-
     env_file_string = os.linesep.join(env_file_content)
     
     # Check environment variable size limit
