@@ -48,7 +48,7 @@ def random_goodbye():
 
 
 def handle_exit(signum, frame):
-    print(f"\n{signal.Signals(signum).name}: {random_goodbye()}")
+    print(f"{os.linesep}{signal.Signals(signum).name}: {random_goodbye()}")
     sys.exit(0)
 
 
@@ -63,7 +63,7 @@ if hasattr(signal, "SIGHUP"):
 def parse_env_template(filepath) -> dict[str, dict]:
     """
     Parses an environment template file and extracts Markdown structured information
-    into a dictionary suitable for programatic use.
+    into a dictionary suitable for programmatic use.
 
     Args:
         filepath (str): Path to the .env template file.
@@ -330,7 +330,7 @@ def main():
 
     try:
         with open(output_filename, "w") as f:
-            f.write(env_file_string + os.linesep)
+            f.write(env_file_string)
         print(f"Environment file written to '{output_filename}'.")
     except (OSError, IOError) as e:
         print(f"Error writing to file '{output_filename}': {e}")
