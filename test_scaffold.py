@@ -6,14 +6,29 @@ import tempfile
 import builtins
 from scaffold import parse_env_template, generate_secure_random_string, main
 
+
 def test_root_detection(monkeypatch):
-    # Simulate running as root by patching os.geteuid to return 0
+    # Simulate running as root by patching os.geteuid to return 0 (Unix)
     import scaffold
 
-    monkeypatch.setattr(scaffold.os, "geteuid", lambda: 0)
-    with pytest.raises(SystemExit) as excinfo:
-        scaffold.main()
-    assert excinfo.value.code == 1
+    if os.name == "nt":
+        monkeypatch.setattr(scaffold.os, "name", "nt")
+        class DummyShell32:
+            @staticmethod
+            def IsUserAnAdmin():
+                return True
+        class DummyWindll:
+            shell32 = DummyShell32()
+        monkeypatch.setattr(scaffold, "ctypes", type("ctypes", (), {"windll": DummyWindll()}))
+        with pytest.raises(SystemExit) as excinfo:
+            scaffold.main()
+        assert excinfo.value.code == 1
+    else:
+        monkeypatch.setattr(scaffold.os, "geteuid", lambda: 0)
+        with pytest.raises(SystemExit) as excinfo:
+            scaffold.main()
+        assert excinfo.value.code == 1
+
 
 def test_parse_env_template_basic():
     content = """
@@ -33,6 +48,7 @@ API_KEY=defaultkey
     assert result["API_KEY"]["info"] == ["This is your API key for service X."]
     assert result["API_KEY"]["default"] == "defaultkey"
 
+
 def test_parse_env_template_with_regex():
     content = """
 # Section 2
@@ -48,6 +64,7 @@ NUMBER=42
     assert "NUMBER" in result
     assert result["NUMBER"]["regex"] == "^[0-9]+$"
     assert result["NUMBER"]["default"] == "42"
+
 
 def test_parse_env_template_with_invalid_regex():
     content = """
@@ -66,26 +83,31 @@ INVALID_VAR=oops
     assert "regex_error" in result["INVALID_VAR"]
     assert "Invalid regex" in result["INVALID_VAR"]["regex_error"]
 
+
 def test_parse_env_template_path_injection():
     # Attempt to use a path traversal string as the filename
     malicious_path = "../../etc/passwd"
-    
+
     # Should not raise, but should return {} since file likely doesn't exist or is not a valid template
     result = parse_env_template(malicious_path)
     assert isinstance(result, dict)
-    
+
     # Should not parse any environment variables from a system file
     assert result == {}
 
-@pytest.mark.parametrize("malformed_path", [
-    "",  # empty string
-    "\0",  # null byte
-    "/////",  # excessive slashes
-    "not/a/real/\0path",  # embedded null
-    "C:\\this\\does\\not\\exist",  # windows style on linux
-    "::::",  # invalid chars
-    "/dev/null",  # special file
-])
+
+@pytest.mark.parametrize(
+    "malformed_path",
+    [
+        "",  # empty string
+        "\0",  # null byte
+        "/////",  # excessive slashes
+        "not/a/real/\0path",  # embedded null
+        "C:\\this\\does\\not\\exist",  # windows style on linux
+        "::::",  # invalid chars
+        "/dev/null",  # special file
+    ],
+)
 def test_parse_env_template_malformed_paths(malformed_path):
     try:
         result = parse_env_template(malformed_path)
@@ -93,7 +115,8 @@ def test_parse_env_template_malformed_paths(malformed_path):
     except Exception:
         # Should not raise, should handle gracefully and return {}
         assert True
-        
+
+
 def test_parse_env_template_malicious_content():
     # Malicious content in the template (attempting command injection, etc.)
     content = """
@@ -107,10 +130,11 @@ MALICIOUS_VAR=$(rm -rf /)
         tf.flush()
         result = parse_env_template(tf.name)
     os.unlink(tf.name)
-    
+
     # The parser should treat this as a string, not execute anything
     assert "MALICIOUS_VAR" in result
     assert result["MALICIOUS_VAR"]["default"] == "$(rm -rf /)"
+
 
 def test_prompt_rejects_malicious_input(monkeypatch):
     # Simulate user input that looks like a shell injection
@@ -120,15 +144,18 @@ def test_prompt_rejects_malicious_input(monkeypatch):
         "question": "Enter value",
         "info": ["Do not enter malicious input"],
         "default": "safe",
-        "regex": r"^[a-zA-Z0-9_]+$"
+        "regex": r"^[a-zA-Z0-9_]+$",
     }
-    
+
     # Should keep prompting, so after one bad input, give a good one
-    inputs = iter(["bad; rm -rf /", "another bad; cat ../../../etc/passwd", "SAFE_VALUE"])
+    inputs = iter(
+        ["bad; rm -rf /", "another bad; cat ../../../etc/passwd", "SAFE_VALUE"]
+    )
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
     value = prompt("MALICIOUS_VAR", data)
     assert value == "SAFE_VALUE"
 
+@pytest.mark.skipif(os.name == "nt", reason="Not applicable on Windows")
 def test_env_size_limit(monkeypatch):
     # Prepare a large env string to exceed the limit
     var_count = 1000
@@ -150,10 +177,13 @@ def test_env_size_limit(monkeypatch):
     monkeypatch.setattr(builtins, "input", lambda *args, **kwargs: next(inputs))
 
     # Patch os.sysconf to return a small limit to force the warning
-    monkeypatch.setattr(os, "sysconf", lambda name: 1024 if name == "SC_ARG_MAX" else 131072)
+    monkeypatch.setattr(
+        os, "sysconf", lambda name: 1024 if name == "SC_ARG_MAX" else 131072
+    )
 
     # Capture output
     from io import StringIO
+
     out = StringIO()
     sys_stdout = sys.stdout
     sys.stdout = out
@@ -166,17 +196,22 @@ def test_env_size_limit(monkeypatch):
 
     output = out.getvalue()
     assert "Warning: The environment file size" in output
-    assert "Aborted. Please reduce the number or size of environment variables." in output
+    assert (
+        "Aborted. Please reduce the number or size of environment variables." in output
+    )
+
 
 def test_generate_secure_random_string_length():
     s = generate_secure_random_string(16)
     assert isinstance(s, str)
     assert len(s) == 16
 
+
 def test_generate_secure_random_string_uniqueness():
     s1 = generate_secure_random_string(32)
     s2 = generate_secure_random_string(32)
     assert s1 != s2
+
 
 def test_parse_env_template_invalid_file():
     result = parse_env_template("/nonexistent/file/path.env")
