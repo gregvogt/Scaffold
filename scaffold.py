@@ -137,6 +137,15 @@ def generate_secure_random_string(length: int) -> str:
     return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
+def clear() -> None:
+    """
+    Clears the terminal screen based on the operating system.
+    """
+    # Attempt to clear the terminal in a cross-platform way
+    clear_cmd = "cls" if os.name == "nt" else "clear"
+    if sys.stdout.isatty():
+        os.system(clear_cmd)
+
 def prompt(var, data, current_question=None, total_questions=None) -> str:
     """
     Prompt the user for an environment variable value, with optional regex validation.
@@ -148,6 +157,8 @@ def prompt(var, data, current_question=None, total_questions=None) -> str:
     Returns:
         str: The value entered by the user (or default).
     """
+    
+    clear()
 
     user_value = data.get("default", "")
     question = data.get("question", "No question provided")
@@ -195,11 +206,8 @@ def prompt(var, data, current_question=None, total_questions=None) -> str:
         while not re.fullmatch(data["regex"], input_str):
             print(f"Input does not match regex: {data['regex']}".center(term_width))
             input_str = input(prompt_str.center(term_width)).strip() or user_value
-
-    # Attempt to clear the terminal in a cross-platform way
-    clear_cmd = "cls" if os.name == "nt" else "clear"
-    if sys.stdout.isatty():
-        os.system(clear_cmd)
+            
+    clear()
 
     return input_str
 
