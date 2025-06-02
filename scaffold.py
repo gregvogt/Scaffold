@@ -205,7 +205,7 @@ def prompt(var, data, current_question=None, total_questions=None) -> str:
     if "regex" in data:
         while not re.fullmatch(data["regex"], input_str):
             print(f"Input does not match regex: {data['regex']}".center(term_width))
-            input_str = input(prompt_str.center(term_width)).strip() or user_value
+            input_str = input(" " * left_padding + prompt_str).strip() or user_value
             
     clear()
 
